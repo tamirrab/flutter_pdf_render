@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class PdfDocument {
@@ -9,24 +10,35 @@ class PdfDocument {
 
   final String sourceName;
   final int docId;
-  final int pageCount;
   final int verMajor;
   final int verMinor;
   final bool isEncrypted;
-  final bool allowsCopying;
-  final bool allowsPrinting;
-  //final bool isUnlocked;
+  int _pageCount;
+  bool _isUnlocked;
+  bool _allowsCopying;
+  bool _allowsPrinting;
+  List<PdfPage> _pages;
 
-  final List<PdfPage> _pages;
+  int get pageCount => _pageCount;
+  bool get isUnlocked => _isUnlocked;
+  bool get allowsCopying => _allowsCopying;
+  bool get allowsPrinting => _allowsPrinting;
 
-  PdfDocument({
-    this.sourceName,
-    this.docId,
-    this.pageCount,
-    this.verMajor, this.verMinor,
-    this.isEncrypted, this.allowsCopying, this.allowsPrinting,
-    //this.isUnlocked,
-  }) : _pages = List<PdfPage>(pageCount);
+  PdfDocument._({
+    @required this.sourceName,
+    @required this.docId,
+    @required this.verMajor, @required this.verMinor,
+    @required this.isEncrypted,
+    @required int pageCount,
+    @required bool isUnlocked,
+    @required bool allowsCopying,
+    @required bool allowsPrinting
+  }) :
+    _pageCount = pageCount,
+    _isUnlocked = isUnlocked,
+    _allowsCopying = allowsCopying,
+    _allowsPrinting = allowsPrinting,
+    _pages = List<PdfPage>(pageCount);
 
   void dispose() {
     _close();
@@ -38,39 +50,58 @@ class PdfDocument {
 
   static PdfDocument _open(Object obj, String sourceName) {
     if (obj is Map<dynamic, dynamic>) {
-      final pageCount = obj['pageCount'] as int;
-      return PdfDocument(
+      return PdfDocument._(
         sourceName: sourceName,
         docId: obj['docId'] as int,
-        pageCount: pageCount,
+        pageCount: obj['pageCount'] as int,
         verMajor: obj['verMajor'] as int,
         verMinor: obj['verMinor'] as int,
         isEncrypted: obj['isEncrypted'] as bool,
         allowsCopying: obj['allowsCopying'] as bool,
         allowsPrinting: obj['allowsPrinting'] as bool,
-        //isUnlocked: obj['isUnlocked'] as bool
+        isUnlocked: obj['isUnlocked'] as bool
       );
     } else {
       return null;
     }
-
   }
 
-  static Future<PdfDocument> openFile(String filePath) async {
-    return _open(await _channel.invokeMethod('file', filePath), filePath);
+  static Future<PdfDocument> openFile(String filePath, {String password}) async {
+    return _open(await _channel.invokeMethod('file', {'filePath': filePath, 'password': password}), filePath);
   }
 
-  static Future<PdfDocument> openAsset(String name) async {
-    return _open(await _channel.invokeMethod('asset', name), 'asset:' + name);
+  static Future<PdfDocument> openAsset(String name, {String password}) async {
+    return _open(await _channel.invokeMethod('asset', {'assetName': name, 'password': password}), 'asset:' + name);
   }
 
-  static Future<PdfDocument> openData(Uint8List data) async {
-    return _open(await _channel.invokeMethod('data', data), 'memory:$data');
+  static Future<PdfDocument> openData(Uint8List data, {String password}) async {
+    return _open(await _channel.invokeMethod('data', {'data': data, 'password': password}), 'memory');
+  }
+
+  Future<bool> unlockWithPassword(String password) async {
+    if (_isUnlocked) {
+      return true;
+    }
+    _isUnlocked = await _channel.invokeMethod<bool>('unlock', {
+        "docId": docId,
+        "password": password
+      });
+    if (_isUnlocked) {
+      final obj = await _channel.invokeMethod('info', docId);
+      if (obj is Map<dynamic, dynamic>) {
+        _pageCount = obj['pageCount'] as int;
+        _allowsCopying = obj['allowsCopying'] as bool;
+        _allowsPrinting = obj['allowsPrinting'] as bool;
+        _isUnlocked = obj['isUnlocked'] as bool;
+        _pages = List<PdfPage>(pageCount);
+      }
+    }
+    return _isUnlocked;
   }
 
   /// Get page object. The first page is 1.
   Future<PdfPage> getPage(int pageNumber) async {
-    if (pageNumber < 1 || pageNumber > pageCount)
+    if (pageNumber < 1 || pageNumber > pageCount || !isUnlocked)
       return null;
     var page = _pages[pageNumber - 1];
     if (page == null) {

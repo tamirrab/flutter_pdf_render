@@ -24,6 +24,7 @@ class _MyAppState extends State<MyApp> {
     // Loading PDF file
     //
     var doc = await PdfDocument.openAsset('assets/hello.pdf');
+    var f = await doc.unlockWithPassword('Flutter');
     var page = await doc.getPage(1); // The first page is 1
     // render at 100 dpi
     const scale = 100.0 / 72.0;

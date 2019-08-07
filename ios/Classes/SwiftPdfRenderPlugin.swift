@@ -4,11 +4,10 @@ import CoreGraphics
 
 class Doc {
   let doc: CGPDFDocument
-  var pages: [CGPDFPage?]
+  var pages: [CGPDFPage?]?
 
   init(doc: CGPDFDocument) {
     self.doc = doc
-    self.pages = Array<CGPDFPage?>(repeating: nil, count: doc.numberOfPages)
   }
 }
 
@@ -31,28 +30,21 @@ public class SwiftPdfRenderPlugin: NSObject, FlutterPlugin {
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-    if call.method == "file"
+    if call.method == "file" || call.method == "asset" || call.method == "data"
     {
-      guard let pdfFilePath = call.arguments as! String? else {
+      guard let args = call.arguments as! NSDictionary? else {
         result(nil)
         return
       }
-      result(registerNewDoc(openFileDoc(pdfFilePath: pdfFilePath)))
+      result(registerNewDoc(openDoc(args)))
     }
-    else if call.method == "asset"
+    else if call.method == "unlock"
     {
-      guard let name = call.arguments as! String? else {
+      guard let args = call.arguments as! NSDictionary? else {
         result(nil)
         return
       }
-      result(registerNewDoc(openAssetDoc(name: name)))
-    }
-    else if call.method == "data" {
-      guard let data = call.arguments as! FlutterStandardTypedData? else {
-        result(nil)
-        return
-      }
-      result(registerNewDoc(openDataDoc(data: data.data)))
+      result(unlockWithPassword(args))
     }
     else if call.method == "close"
     {
@@ -89,6 +81,24 @@ public class SwiftPdfRenderPlugin: NSObject, FlutterPlugin {
     }
   }
 
+  func openDoc(_ args: NSDictionary) -> CGPDFDocument? {
+    var doc: CGPDFDocument? = nil
+    if let filePath = args["filePath"] as! String? {
+      doc = openFileDoc(pdfFilePath: filePath)
+    } else if let assetName = args["assetName"] as! String? {
+      doc = openAssetDoc(name: assetName)
+    } else if let data = args["data"] as! FlutterStandardTypedData? {
+      doc = openDataDoc(data: data.data)
+    }
+
+    guard doc != nil else { return nil }
+    if let password = args["password"] as? String {
+      let _ = unlock(doc: doc!, password: password)
+    }
+
+    return doc
+  }
+
   func registerNewDoc(_ doc: CGPDFDocument?) -> NSDictionary? {
     guard doc != nil else { return nil }
     let id = SwiftPdfRenderPlugin.newId
@@ -96,6 +106,18 @@ public class SwiftPdfRenderPlugin: NSObject, FlutterPlugin {
     if SwiftPdfRenderPlugin.newId == SwiftPdfRenderPlugin.invalid.intValue { SwiftPdfRenderPlugin.newId = 0 }
     docMap[id] = Doc(doc: doc!)
     return getInfo(docId: id)
+  }
+
+  func unlock(doc: CGPDFDocument, password: String) -> Bool {
+    let pwdData = password.data(using: String.Encoding.utf8, allowLossyConversion: false)!
+    return pwdData.withUnsafeBytes { (bytes) in return doc.unlockWithPassword(bytes) }
+  }
+
+  func unlockWithPassword(_ args: NSDictionary) -> Bool? {
+    let docId = args["docId"] as! Int
+    guard let doc = docMap[docId] else { return nil }
+    guard let password = args["password"] as? String else { return nil }
+    return unlock(doc: doc.doc, password: password)
   }
 
   func getInfo(docId: Int) -> NSDictionary? {
@@ -143,13 +165,17 @@ public class SwiftPdfRenderPlugin: NSObject, FlutterPlugin {
   func openPage(args: NSDictionary) -> NSDictionary? {
     let docId = args["docId"] as! Int
     guard let doc = docMap[docId] else { return nil }
+    guard doc.doc.isUnlocked else { return nil }
     let pageNumber = args["pageNumber"] as! Int
-    if pageNumber < 1 || pageNumber > doc.pages.count { return nil }
-    var page = doc.pages[pageNumber - 1]
+    if doc.pages == nil {
+        doc.pages = Array<CGPDFPage?>(repeating: nil, count: doc.doc.numberOfPages)
+    }
+    if pageNumber < 1 || pageNumber > doc.pages!.count { return nil }
+    var page = doc.pages![pageNumber - 1]
     if page == nil {
       page = doc.doc.page(at: pageNumber)
       if page == nil { return nil }
-      doc.pages[pageNumber - 1] = page
+      doc.pages![pageNumber - 1] = page
     }
 
     let pdfBBox = page!.getBoxRect(.mediaBox)
@@ -174,11 +200,11 @@ public class SwiftPdfRenderPlugin: NSObject, FlutterPlugin {
       return
     }
     let pageNumber = args["pageNumber"] as! Int
-    guard pageNumber >= 1 && pageNumber <= doc.pages.count else {
+    guard doc.pages != nil && pageNumber >= 1 && pageNumber <= doc.pages!.count else {
       result(SwiftPdfRenderPlugin.invalid)
       return
     }
-    guard let page = doc.pages[pageNumber - 1] else {
+    guard let page = doc.pages![pageNumber - 1] else {
       result(SwiftPdfRenderPlugin.invalid)
       return
     }

@@ -115,7 +115,8 @@ class PdfRenderPlugin(registrar: Registrar): MethodCallHandler {
             "verMinor" to 7,
             "isEncrypted" to false,
             "allowsCopying" to false,
-            "allowPrinting" to false)
+            "allowPrinting" to false,
+            "isUnlocked" to true)
   }
 
   private fun close(id: Int) {
