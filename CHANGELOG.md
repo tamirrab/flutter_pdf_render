@@ -1,3 +1,7 @@
+# 0.69.0
+
+* allowAntialiasingIOS support.
+
 ## 0.68.0
 
 * Update device_info version.

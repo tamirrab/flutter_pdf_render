@@ -42,7 +42,8 @@ typedef PdfPageTextureBuilder = Widget Function({
   PdfPagePlaceholderBuilder placeholderBuilder,
   bool backgroundFill,
   double renderingPixelRatio,
-  bool dontUseTexture
+  bool dontUseTexture,
+  bool allowAntialiasingIOS
 });
 
 /// Creates page placeholder that is shown on page loading or even page load failure.
@@ -195,11 +196,20 @@ class PdfPageView extends StatefulWidget {
   /// Function to build page widget tree. It can be null if you want to use the default page builder.
   final PdfPageBuilder pageBuilder;
 
+  final bool backgroundFill;
+  final double renderingPixelRatio;
+  final bool dontUseTexture;
+  final bool allowAntialiasingIOS;
+
   PdfPageView(
       {Key key,
       this.pdfDocument,
       @required this.pageNumber,
-      this.pageBuilder})
+      this.pageBuilder,
+      this.backgroundFill,
+      this.renderingPixelRatio,
+      this.dontUseTexture,
+      this.allowAntialiasingIOS})
       : super(key: key);
 
   @override
@@ -229,7 +239,11 @@ class _PdfPageViewState extends State<PdfPageView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.pdfDocument != widget.pdfDocument ||
         oldWidget.pageNumber != widget.pageNumber ||
-        oldWidget.pageBuilder != widget.pageBuilder) {
+        oldWidget.pageBuilder != widget.pageBuilder ||
+        oldWidget.backgroundFill != widget.backgroundFill ||
+        oldWidget.dontUseTexture != widget.dontUseTexture ||
+        oldWidget.allowAntialiasingIOS != widget.allowAntialiasingIOS ||
+        oldWidget.renderingPixelRatio != widget.renderingPixelRatio) {
       _release();
       _init();
     }
@@ -284,7 +298,7 @@ class _PdfPageViewState extends State<PdfPageView> {
 
   Widget _pageBuilder(BuildContext context, PdfPageTextureBuilder textureBuilder, Size pageSize) {
     return LayoutBuilder(
-        builder: (context, constraints) => textureBuilder());
+        builder: (context, constraints) => textureBuilder(allowAntialiasingIOS: widget.allowAntialiasingIOS, backgroundFill: widget.backgroundFill, dontUseTexture: widget.dontUseTexture, renderingPixelRatio: widget.renderingPixelRatio));
   }
 
   Size get _pageSize => _size ?? defaultSize;
@@ -294,12 +308,12 @@ class _PdfPageViewState extends State<PdfPageView> {
     return Size(pageSize.width * ratio, pageSize.height * ratio);
   }
 
-  Widget _textureBuilder({Size size, bool returnNullForError, PdfPagePlaceholderBuilder placeholderBuilder, bool backgroundFill, double renderingPixelRatio, bool dontUseTexture}) {
+  Widget _textureBuilder({Size size, bool returnNullForError, PdfPagePlaceholderBuilder placeholderBuilder, bool backgroundFill, double renderingPixelRatio, bool dontUseTexture, bool allowAntialiasingIOS}) {
     return LayoutBuilder(builder: (context, constraints) {
       size ??= _sizeFromConstratints(constraints, _pageSize);
       placeholderBuilder ??= (size, status) => Container(width: size.width, height: size.height, color: Color.fromARGB(255, 220, 220, 220));
       return FutureBuilder<bool>(
-          future: _buildTexture(size: size, backgroundFill: backgroundFill, renderingPixelRatio: renderingPixelRatio, dontUseTexture: dontUseTexture),
+          future: _buildTexture(size: size, backgroundFill: backgroundFill, renderingPixelRatio: renderingPixelRatio, dontUseTexture: dontUseTexture, allowAntialiasingIOS: allowAntialiasingIOS),
           initialData: false,
           builder: (context, snapshot) {
             if (snapshot.data != true) {
@@ -334,7 +348,7 @@ class _PdfPageViewState extends State<PdfPageView> {
     });
   }
 
-  Future<bool> _buildTexture({@required Size size, bool backgroundFill, double renderingPixelRatio, bool dontUseTexture}) async {
+  Future<bool> _buildTexture({@required Size size, bool backgroundFill, double renderingPixelRatio, bool dontUseTexture, bool allowAntialiasingIOS}) async {
     if (_doc == null ||
         widget.pageNumber == null ||
         widget.pageNumber < 1 ||
@@ -355,7 +369,8 @@ class _PdfPageViewState extends State<PdfPageView> {
         height: pixelSize.height.toInt(),
         fullWidth: pixelSize.width,
         fullHeight: pixelSize.height,
-        backgroundFill: backgroundFill);
+        backgroundFill: backgroundFill,
+        allowAntialiasingIOS: allowAntialiasingIOS);
       await _image.createImageIfNotAvailable();
     } else {
       if (_texture == null ||
@@ -374,7 +389,8 @@ class _PdfPageViewState extends State<PdfPageView> {
         texHeight: pixelSize.height.toInt(),
         fullWidth: pixelSize.width,
         fullHeight: pixelSize.height,
-        backgroundFill: backgroundFill);
+        backgroundFill: backgroundFill,
+        allowAntialiasingIOS: allowAntialiasingIOS);
     }
     return true;
   }
@@ -498,6 +514,8 @@ class PdfViewer extends StatefulWidget {
   final double maxScale;
   /// See [InteractiveViewer] for more info.
   final double minScale;
+  /// Whether to allow use of antialiasing on iOS Quartz PDF rendering.
+  final bool allowAntialiasingIOS;
   /// See [InteractiveViewer] for more info.
   final GestureScaleEndCallback onInteractionEnd;
   /// See [InteractiveViewer] for more info.
@@ -522,6 +540,7 @@ class PdfViewer extends StatefulWidget {
     this.buildPageOverlay,
     this.pageDecoration,
     this.alignPanAxis = false,
+    this.allowAntialiasingIOS = true,
     this.boundaryMargin = EdgeInsets.zero,
     this.maxScale = 20,
     this.minScale = 0.1,
@@ -879,7 +898,8 @@ class _PdfViewerState extends State<PdfViewer> with SingleTickerProviderStateMix
           texWidth: w.toInt(),
           texHeight: h.toInt(),
           fullWidth: w,
-          fullHeight: h);
+          fullHeight: h,
+          allowAntialiasingIOS: widget.allowAntialiasingIOS);
         page.status = _PdfPageLoadingStatus.pageLoaded;
         page.updatePreview();
       }
@@ -932,7 +952,8 @@ class _PdfViewerState extends State<PdfViewer> with SingleTickerProviderStateMix
           texWidth: w,
           texHeight: h,
           fullWidth: fw,
-          fullHeight: fh);
+          fullHeight: fh,
+          allowAntialiasingIOS: widget.allowAntialiasingIOS);
         page._updateRealSizeOverlay();
       }
     }

@@ -206,7 +206,8 @@ typedef PdfPageTextureBuilder = Widget Function({
   PdfPagePlaceholderBuilder placeholderBuilder,
   bool backgroundFill,
   double renderingPixelRatio,
-  bool dontUseTexture
+  bool dontUseTexture,
+  bool allowAntialiasingIOS
 });
 ```
 
@@ -334,9 +335,11 @@ class PdfPage {
 
   // render sub-region of the PDF page.
   Future<PdfPageImage> render({
-    int x = 0, int y = 0,
-    int width = 0, int height = 0,
-    double fullWidth = 0.0, double fullHeight = 0.0 });
+    int x, int y,
+    int width, int height,
+    double fullWidth, double fullHeight,
+    bool backgroundFill,
+    bool allowAntialiasingIOS});
 }
 ```
 
@@ -417,7 +420,7 @@ class PdfPageImageTexture {
   /// Update texture's sub-rectangle ([destX],[destY],[width],[height]) with the sub-rectangle ([srcX],[srcY],[width],[height]) of the PDF page scaled to [fullWidth] x [fullHeight] size.
   /// If [backgroundFill] is true, the sub-rectangle is filled with white before rendering the page content.
   /// The method can also resize the texture if you specify [texWidth] and [texHeight].
-  Future<void> updateRect({int destX = 0, int destY = 0, int width, int height, int srcX = 0, int srcY = 0, int texWidth, int texHeight, double fullWidth, double fullHeight, bool backgroundFill = true});
+  Future<void> updateRect({int destX = 0, int destY = 0, int width, int height, int srcX = 0, int srcY = 0, int texWidth, int texHeight, double fullWidth, double fullHeight, bool backgroundFill = true, bool allowAntialiasingIOS = true});
 }
 ```
 

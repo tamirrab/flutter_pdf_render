@@ -130,7 +130,7 @@ class PdfPage {
   /// If [width], [height], [fullWidth], [fullHeight], and [dpi] are all 0, the page is rendered at 72 dpi.
   /// By default, [backgroundFill] is true and the page background is once filled with white before rendering page image but you can turn it off if needed.
   /// ![](./images/render-params.png)
-  Future<PdfPageImage> render({int x, int y, int width, int height, double fullWidth, double fullHeight, bool backgroundFill}) async {
+  Future<PdfPageImage> render({int x, int y, int width, int height, double fullWidth, double fullHeight, bool backgroundFill, bool allowAntialiasingIOS}) async {
     return PdfPageImage._render(
       document, pageNumber,
       x: x,
@@ -139,7 +139,8 @@ class PdfPage {
       height: height,
       fullWidth: fullWidth,
       fullHeight: fullHeight,
-      backgroundFill: backgroundFill
+      backgroundFill: backgroundFill,
+      allowAntialiasingIOS: allowAntialiasingIOS,
     );
   }
 
@@ -217,6 +218,7 @@ class PdfPageImage {
     { int x , int y, int width, int height,
       double fullWidth, double fullHeight,
       bool backgroundFill,
+      bool allowAntialiasingIOS,
     }) async {
 
     var obj = await _channel.invokeMethod(
@@ -225,7 +227,8 @@ class PdfPageImage {
         'docId': document.docId, 'pageNumber': pageNumber,
         'x': x, 'y': y, 'width': width, 'height': height,
         'fullWidth': fullWidth, 'fullHeight': fullHeight,
-        'backgroundFill': backgroundFill
+        'backgroundFill': backgroundFill,
+        'allowAntialiasingIOS': allowAntialiasingIOS,
       });
 
     if (obj is Map<dynamic, dynamic>) {
@@ -261,7 +264,10 @@ class PdfPageImage {
 
   static Future<PdfPageImage> render(String filePath, int pageNumber,
     { int x, int y, int width, int height,
-      double fullWidth, double fullHeight}) async {
+      double fullWidth, double fullHeight,
+      bool backgroundFill,
+      bool allowAntialiasingIOS
+    }) async {
     final doc = await PdfDocument.openFile(filePath);
     if (doc == null) return null;
     final page = await doc.getPage(pageNumber);
@@ -269,7 +275,9 @@ class PdfPageImage {
       x: x, y: y,
       width: width,
       height: height,
-      fullWidth: fullWidth, fullHeight: fullHeight);
+      fullWidth: fullWidth, fullHeight: fullHeight,
+      backgroundFill: backgroundFill,
+      allowAntialiasingIOS: allowAntialiasingIOS);
     doc.dispose();
     return image;
   }
@@ -324,7 +332,7 @@ class PdfPageImageTexture {
   /// If [backgroundFill] is true, the sub-rectangle is filled with white before rendering the page content.
   /// The method can also resize the texture if you specify [texWidth] and [texHeight].
   /// Returns true if succeeded.
-  Future<bool> updateRect({int destX = 0, int destY = 0, int width, int height, int srcX = 0, int srcY = 0, int texWidth, int texHeight, double fullWidth, double fullHeight, bool backgroundFill = true}) async {
+  Future<bool> updateRect({int destX = 0, int destY = 0, int width, int height, int srcX = 0, int srcY = 0, int texWidth, int texHeight, double fullWidth, double fullHeight, bool backgroundFill = true, bool allowAntialiasingIOS = true}) async {
     final result = await _channel.invokeMethod<int>('updateTex', {
       'docId': pdfDocument.docId,
       'pageNumber': pageNumber,
@@ -339,7 +347,8 @@ class PdfPageImageTexture {
       'texHeight': texHeight,
       'fullWidth': fullWidth,
       'fullHeight': fullHeight,
-      'backgroundFill': backgroundFill
+      'backgroundFill': backgroundFill,
+      'allowAntialiasingIOS': allowAntialiasingIOS,
     });
     if (result >= 0) {
       _texWidth = texWidth ?? _texWidth;
